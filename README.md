@@ -97,7 +97,7 @@ Scripts, in the checkout:
 |---|---|
 | `board.sh` | opens or jumps to the board window; runs the dashboard directly outside tmux |
 | `dashboard.sh` | the board itself: the todos, history, windows and help screens |
-| `todo.sh` | the todo list CLI, the only writer of `todos.tsv`; `todo.sh` without arguments prints its usage |
+| `todo.sh` | the todo list CLI, the only writer of `todos.tsv`; its header comment documents every command |
 | `collect.sh` | the hook entrypoint: one TSV event line per hook call, never blocking a session |
 | `history.sh` | past conversations, from the Claude transcripts, cached per file |
 | `windows.sh` | the tmux window inventory |
