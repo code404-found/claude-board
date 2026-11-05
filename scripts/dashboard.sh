@@ -83,7 +83,8 @@ ${B}KEYS${R}
        adds an item through /todoa fills them in.
        [A] adds one, [C] creates a category, [X] deletes one, [R] renames one or
        moves it under another path, [O] orders one among its siblings with [k] [j],
-       [H] shows done and canceled items,
+       [H] shows done and canceled items, [T] the recycle bin, where [x] sends an
+       item: pick one there to [r] restore it or [x] delete it for good,
        [/] keeps the items whose number, title, description, category or directory
        contains the text, ignoring case. Each item shows its place in its
        category, each category the open items under it in parentheses.
@@ -95,11 +96,11 @@ ${B}KEYS${R}
   ${B}h${R}    this page          ${B}q${R}  quit
 
 ${B}FILES${R}
-  ${D}$HERE/   scripts
-  ~/.claude/orchestrator/          todos.tsv, categories, categories.order and config
-  ~/.claude/orchestrator/state/   one file per live session, written by hooks, for todo chats
-  ~/.claude/orchestrator/cache/   board caches
-  Hooks live in ~/.claude/settings.json, written by install.sh.${R}
+  ${D}$HERE/   scripts, in the plugin
+  ~/.claude/orchestrator/          todos.tsv, trash.tsv, categories, categories.order and config
+  ~/.claude/orchestrator/state/    one file per live session, written by hooks, for todo chats
+  ~/.claude/orchestrator/cache/    board caches
+  Hooks come from the plugin's hooks/hooks.json.${R}
 
 ${D}Press any key to go back.${R}
 EOF
@@ -135,10 +136,6 @@ windows_frame() {
     "$C_DIM" "$empties" "$C_RST"
 
   printf '\n%s  [a-z] go to window   [Esc] back   [Q] quit%s\n' "$C_DIM" "$C_RST"
-}
-
-goto_window() {
-  goto_pane "$(awk -F'\t' -v l="$1" '$1==l{print $2; exit}' "$CACHE/window-keys.tsv" 2>/dev/null)"
 }
 
 # Keep the TSV rows whose columns $1 (comma-separated) contain FILTER, ignoring case.
@@ -203,6 +200,7 @@ todo_line() {
   case "$status" in
     done)  mark='✓'; st=done; col=$C_DIM ;;
     canceled) mark='✗'; st=canceled; col=$C_DIM ;;
+    deleted) mark='⌧'; st=deleted; col=$C_DIM ;;
     doing) if [ -n "$(todo_pane "$sid")" ]; then mark='●'; st='in chat'; col=$C_GRN
            else mark='◐'; st=paused; col=$C_YEL; fi ;;
     review) mark='◇'; st=review; col=$C_BLU ;;
@@ -269,12 +267,14 @@ render_todos() {
   [ "$n" -gt "$shown" ] && printf '  %s… %s more, [o] to see them all%s\n' "$C_DIM" $((n-shown)) "$C_RST"
 }
 
-# The rows of the todos screen: the open tree, or the done items flat, newest first, category in front.
+# The rows of the todos screen: the open tree, or the done items or the recycle bin flat, newest first,
+# category in front. A binned row keeps its status, shown as deleted so the item menu offers restore.
 todo_rows() {
-  if [ "$TODO_HISTORY" = 1 ]; then
-    bash "$HERE/todo.sh" list --all | awk -F'\t' '$2=="done" || $2=="canceled"' | filtered 1,6,7,8,9 | sort -t$'\t' -k4,4nr \
-      | awk -F'\t' -v OFS='\001' '{ print "I", 0, $1, $2, $5, ($8 == "" ? "" : "[" $8 "] ") ($9 != "" ? $9 : $7), "" }'
-  else todo_tree; fi
+  [ "$TODO_HISTORY" != 0 ] || { todo_tree; return; }
+  if [ "$TODO_HISTORY" = 2 ]; then bash "$HERE/todo.sh" list --bin | awk -F'\t' -v OFS='\t' '{ $2 = "deleted" } 1'
+  else bash "$HERE/todo.sh" list --all | awk -F'\t' '$2=="done" || $2=="canceled"'; fi \
+    | filtered 1,6,7,8,9 | sort -t$'\t' -k4,4nr \
+    | awk -F'\t' -v OFS='\001' '{ print "I", 0, $1, $2, $5, ($8 == "" ? "" : "[" $8 "] ") ($9 != "" ? $9 : $7), "" }'
 }
 
 # The todo list in exactly HEIGHT lines: title, rule, then the rows from TODO_TOP on, keys a-z on the
@@ -311,7 +311,9 @@ todo_list() {
     body+=$(todo_line "$key" "$id" "$status" "$sid" "$text" $((w-22)) "$depth" "$pos" "$wait")$'\n'
   done
 
-  local scope=open; [ "$TODO_HISTORY" = 1 ] && scope='done and canceled, newest first'
+  local scope=open
+  [ "$TODO_HISTORY" != 1 ] || scope='done and canceled, newest first'
+  [ "$TODO_HISTORY" != 2 ] || scope='recycle bin, newest first'
   printf '%s%sTODOS%s %s(%s · rows %s-%s of %s%s)%s\n' "$C_BLD" "$C_BLU" "$C_RST" "$C_DIM" "$scope" \
     $((top + 1)) "$i" "${#rows[@]}" "${FILTER:+ · filter: $FILTER}" "$C_RST"
   printf '%s%s%s\n' "$C_DIM" "$(printf '─%.0s' $(seq 1 "$w"))" "$C_RST"
@@ -323,12 +325,14 @@ todo_list() {
 
 todos_frame() {
   local h; h=$(tput lines 2>/dev/null || echo 40)
-  local other=history; [ "$TODO_HISTORY" = 1 ] && other='open items'
+  local other=history bin='recycle bin'
+  [ "$TODO_HISTORY" != 1 ] || other='open items'
+  [ "$TODO_HISTORY" != 2 ] || bin='open items'
   # the footer may wrap once, and the frame must stop short of the last line or the terminal scrolls
   todo_list $((h - 4 - (${#TODO_MSG} > 0)))
   if [ "$TODO_MORE" = 1 ]; then
-    printf '%s  [a-z] pick an item   [A] add   [C] new category   [X] delete category   [/] filter   [R] rename category   [O] order categories   [H] %s   [↑↓ PgUp PgDn J K] scroll   [?] less   [Esc] back   [Q] quit%s\n' \
-      "$C_DIM" "$other" "$C_RST"
+    printf '%s  [a-z] pick an item   [A] add   [C] new category   [X] delete category   [/] filter   [R] rename category   [O] order categories   [H] %s   [T] %s   [↑↓ PgUp PgDn J K] scroll   [?] less   [Esc] back   [Q] quit%s\n' \
+      "$C_DIM" "$other" "$bin" "$C_RST"
   else
     printf '%s  [a-z] pick an item   [A] add   [C] new category   [X] delete category   [?] more   [Esc] back   [Q] quit%s\n' "$C_DIM" "$C_RST"
   fi
@@ -383,18 +387,21 @@ open_url() {
 # Show the picked item in full under the list, then act on it: start, resume or jump to its chat,
 # close, reopen or delete it, edit its title or description. The list keeps the top part and scrolls.
 todo_act() {
-  local row id status sid pane act w h list desc opts more title text cat cwd after links urls waits v snap=1
+  local row id status sid pane act w h list desc opts more title text cat cwd after links urls waits v snap=1 src=all
   row=$(awk -F'\t' -v l="$1" '$1==l{print; exit}' "$CACHE/todo-keys.tsv")
   IFS=$'\001' read -r _ id status sid <<< "${row//$'\t'/$'\001'}"
   [ -n "${id:-}" ] || return 0
-  IFS=$'\001' read -r _ _ _ _ _ cwd text cat title after links <<< "$(bash "$HERE/todo.sh" list --all \
+  [ "$status" != deleted ] || src=bin
+  IFS=$'\001' read -r _ _ _ _ _ cwd text cat title after links <<< "$(bash "$HERE/todo.sh" list --$src \
     | awk -F'\t' -v id="$id" '$1==id{gsub("\t", "\001"); print; exit}')"
   waits=$(bash "$HERE/todo.sh" list --all | awk -F'\t' -v a=",$after," 'index(a, "," $1 ",") {
     printf "    #%s %-8s %s\n", $1, $2, ($9 != "" ? $9 : $7) }')
   urls=$(item_links "$cat" "$text" "$links")
   load_panes; pane=$(todo_pane "${sid:-}")
   # the frequent actions first, the rest behind [?] (TODO_MORE)
-  if [ "$status" = done ] || [ "$status" = canceled ]; then
+  if [ "$status" = deleted ]; then
+    opts='[r] restore  [x] delete for good  '; more=''
+  elif [ "$status" = done ] || [ "$status" = canceled ]; then
     opts='[r] reopen  [x] delete  '; more='[t] title  [e] description  [l] links  '
   else
     opts='[s] jump to its chat  [d] done  [e] description  [x] delete  '
@@ -438,12 +445,12 @@ todo_act() {
     m) [ "$status" != done ] && [ "$status" != canceled ] && bash "$HERE/todo.sh" merge "$id" ;;
     d) bash "$HERE/todo.sh" done "$id" ;;
     n) bash "$HERE/todo.sh" cancel "$id" ;;
-    r) bash "$HERE/todo.sh" reopen "$id" ;;
+    r) bash "$HERE/todo.sh" "$([ "$status" = deleted ] && echo restore || echo reopen)" "$id" ;;
     k) [ "$status" != done ] && [ "$status" != canceled ] && bash "$HERE/todo.sh" up "$id" ;;
     j) [ "$status" != done ] && [ "$status" != canceled ] && bash "$HERE/todo.sh" down "$id" ;;
     p) [ "$status" != done ] && [ "$status" != canceled ] && v=$(read_edit 'position in its category, 1 the top' '') \
          && TODO_MSG=$(bash "$HERE/todo.sh" pos "$id" "$v" 2>&1) ;;
-    x) bash "$HERE/todo.sh" rm "$id" ;;
+    x) bash "$HERE/todo.sh" "$([ "$status" = deleted ] && echo purge || echo rm)" "$id" ;;
     c) bash "$HERE/todo.sh" move "$id" "$(read_cat item)" ;;
     w) [ "$status" != done ] && [ "$status" != canceled ] && v=$(read_edit 'ids it waits on, such as 12,15, empty for none' "$after") \
          && TODO_MSG=$(bash "$HERE/todo.sh" after "$id" "$v" 2>&1) ;;
@@ -565,7 +572,8 @@ while :; do
       R)        c=$(read_cat); [ -n "$c" ] && v=$(read_edit "rename $c to" "$c") \
                   && TODO_MSG=$(bash "$HERE/todo.sh" mvcat "$c" "$v" 2>&1) ;;
       O)        TODO_MSG=''; todo_order_cat ;;
-      H)        TODO_HISTORY=$((1-TODO_HISTORY)); TODO_TOP=0 ;;
+      H)        TODO_HISTORY=$(( TODO_HISTORY == 1 ? 0 : 1 )); TODO_TOP=0 ;;
+      T)        TODO_HISTORY=$(( TODO_HISTORY == 2 ? 0 : 2 )); TODO_TOP=0 ;;
       '?')      TODO_MORE=$((1-TODO_MORE)) ;;
       [a-z])    todo_act "$key" ;;
     esac

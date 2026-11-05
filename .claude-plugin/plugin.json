@@ -1,0 +1,10 @@
+{
+  "name": "board",
+  "version": "1.0.0",
+  "description": "A tmux board for Claude Code: one todo list shared by the board and every session, a chat per item in its own tmux window, past conversations to resume, and a window inventory.",
+  "author": { "name": "code404-found" },
+  "homepage": "https://github.com/code404-found/claude-board",
+  "repository": "https://github.com/code404-found/claude-board",
+  "license": "MIT",
+  "keywords": ["tmux", "todo", "board", "sessions", "hooks"]
+}

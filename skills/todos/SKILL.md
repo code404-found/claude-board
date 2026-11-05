@@ -3,12 +3,12 @@ name: todos
 description: List the board's todo items and start one in a new chat, or mark one done or canceled. Use when the user invokes /todos.
 argument-hint: [id | done [id] | cancel [id] | review [id] | merge [id] | move id [path] | after id [ids]]
 disable-model-invocation: true
-allowed-tools: Bash(__TODO_SH__:*), AskUserQuestion
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/todo.sh:*), AskUserQuestion
 ---
 
 # /todos: start or close a todo
 
-Script: `__TODO_SH__`. Arguments: `$ARGUMENTS`
+Script: `${CLAUDE_PLUGIN_ROOT}/scripts/todo.sh`. Arguments: `$ARGUMENTS`
 
 - `<id>`: run `todo.sh start <id>`. It opens a tmux window with a new chat on
   the item, or resumes the chat that already worked on it. Report the window

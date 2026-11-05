@@ -3,7 +3,7 @@ name: todoa
 description: Add an item to the todo list shown on the tmux board. Use when the user invokes /todoa.
 argument-hint: <what to do>
 disable-model-invocation: true
-allowed-tools: Bash(__TODO_SH__:*), AskUserQuestion
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/todo.sh:*), AskUserQuestion
 ---
 
 # /todoa: add a todo
@@ -25,7 +25,7 @@ Item text: `$ARGUMENTS`
   nothing blocks it: a related item that does not block it is no dependency.
 
   ```
-  __TODO_SH__ add --cwd <dir> --cat <path> --after <id,id> <<'TODO'
+  ${CLAUDE_PLUGIN_ROOT}/scripts/todo.sh add --cwd <dir> --cat <path> --after <id,id> <<'TODO'
   <text>
   TODO
   ```

@@ -19,12 +19,14 @@
 # carry vanishes with its last one. categories.order ranks siblings the way the board draws
 # them, written by catup and catdown; a path it misses comes after, made ones first, then
 # the others alphabetically.
+# trash.tsv is the recycle bin: rm moves a row there, status kept and updated set to the deletion
+# time, restore puts it back at the end of the list and purge drops it for good.
 #
 # Usage:
 #   todo.sh add [--cwd DIR] [--cat PATH] [--after IDS] TEXT...   (TEXT from stdin when omitted) -> prints the id
 #   todo.sh after ID [IDS]            set the items ID waits on, such as "12,15", clear them without IDS
 #   todo.sh links ID [URLS]           set the links added to ID, clear them without URLS
-#   todo.sh list [--all]              open and in-progress items, --all adds done and canceled
+#   todo.sh list [--all | --bin]      open and in-progress items, --all adds done and canceled, --bin the recycle bin
 #   todo.sh cats                      the categories of open items or created, one per line, in board order
 #   todo.sh mkcat PATH                create a category, nested under its parents
 #   todo.sh rmcat PATH                delete a category and its subcategories, refused while an open item is filed there
@@ -38,18 +40,20 @@
 #   todo.sh start ID                  open a new tmux window with a chat on the item,
 #                                     or resume the chat that already worked on it
 #   todo.sh review ID | merge ID      its PR waits for approval, or is approved and waits to be completed
-#   todo.sh done ID | cancel ID | reopen ID | rm ID
+#   todo.sh done ID | cancel ID | reopen ID | rm ID   rm moves the item to the recycle bin
+#   todo.sh restore ID | purge [ID]   put an item back from the recycle bin, or drop one or all of them for good
 #   todo.sh link ID SESSION_ID
 set -uo pipefail
 
 DIR="${CLAUDE_ORCH_DIR:-$HOME/.claude/orchestrator}"
 DB="$DIR/todos.tsv"
+BIN="$DIR/trash.tsv"
 CATS="$DIR/categories"
 ORDER="$DIR/categories.order"
 # config, a shell file in the data directory: CLAUDE_BIN, CLAUDE_ORCH_ISSUE_URL
 [ -f "$DIR/config" ] && . "$DIR/config"
 CLAUDE_BIN="${CLAUDE_BIN:-$(command -v claude || echo claude)}"
-mkdir -p "$DIR" && touch "$DB" "$CATS" "$ORDER"
+mkdir -p "$DIR" && touch "$DB" "$BIN" "$CATS" "$ORDER"
 
 die() { printf 'todo: %s\n' "$*" >&2; exit 1; }
 row() { awk -F'\t' -v id="$1" '$1==id{print; exit}' "$DB"; }
@@ -85,6 +89,17 @@ gen_title() {
     --settings '{"disableAllHooks":true}' \
     --system-prompt "You write the title of a todo item: at most 5 words, saying what it does, in English unless the item itself is written in French. Name the component, never a config key, class or ticket key. Reply with the title only, no quotes, no trailing period." \
     "Title for this todo:") 2>/dev/null | head -1
+}
+
+# Move one row from file FROM to the end of file TO, dating it now. WHERE names FROM in the error.
+move_row() {
+  local from="$1" to="$2" id="$3" where="${4:-}"
+  grep -q "^$id"$'\t' "$from" || die "no item #$id${where:+ $where}"
+  (
+    flock 9
+    awk -F'\t' -v OFS='\t' -v id="$id" -v to="$to" -v now="$(date +%s)" '
+      $1==id { $4 = now; print >> to; next } { print }' "$from" > "$from.tmp" && mv "$from.tmp" "$from"
+  ) 9> "$DB.lock"
 }
 
 # Set the status and/or the session of one row. flock serialises the board and concurrent hooks.
@@ -181,7 +196,8 @@ case "$cmd" in
     [ -n "$text" ] || die "empty item"
     (
       flock 9
-      id=$(awk -F'\t' '$1+0>m{m=$1+0} END{print m+1}' "$DB")
+      # the recycle bin counts too, or a restored item could share its id with a newer one
+      id=$(awk -F'\t' '$1+0>m{m=$1+0} END{print m+1}' "$DB" "$BIN")
       now=$(date +%s)
       printf '%s\ttodo\t%s\t%s\t\t%s\t%s\t%s\t\t%s\n' "$id" "$now" "$now" "$cwd" "$text" "$cat" "$after" >> "$DB"
       printf '#%s %s%s%s\n' "$id" "${cat:+[$cat] }" "${after:+(after #${after//,/ #}) }" "$text"
@@ -190,7 +206,11 @@ case "$cmd" in
     ) 9> "$DB.lock" ;;
 
   list)
-    if [ "${1:-}" = --all ]; then cat "$DB"; else awk -F'\t' '$2!="done" && $2!="canceled"' "$DB"; fi ;;
+    case "${1:-}" in
+      --all) cat "$DB" ;;
+      --bin) cat "$BIN" ;;
+      *) awk -F'\t' '$2!="done" && $2!="canceled"' "$DB" ;;
+    esac ;;
   cats) ordered_cats ;;
   mkcat)
     c=$(clean_cat "${1:-}"); [ -n "$c" ] || die "empty category"
@@ -274,11 +294,13 @@ case "$cmd" in
       # a title typed while Haiku ran wins
       [ -n "$t" ] && [ -z "$(row "$id" | cut -f9)" ] && set_col "$id" 9 "$t"
     done ;;
-  rm)
+  rm)      move_row "$DB" "$BIN" "${1:?id}" ;;
+  restore) move_row "$BIN" "$DB" "${1:?id}" "in the recycle bin" ;;
+  purge)
     (
       flock 9
-      awk -F'\t' -v id="${1:?id}" '$1!=id' "$DB" > "$DB.tmp" && mv "$DB.tmp" "$DB"
+      awk -F'\t' -v id="${1:-}" 'id != "" && $1 != id' "$BIN" > "$BIN.tmp" && mv "$BIN.tmp" "$BIN"
     ) 9> "$DB.lock" ;;
 
-  *) die "unknown command '$cmd' (add, list, cats, mkcat, rmcat, mvcat, catup, catdown, start, review, merge, done, cancel, reopen, rm, link, links, move, up, down, pos, title, after, edit, autotitle)" ;;
+  *) die "unknown command '$cmd' (add, list, cats, mkcat, rmcat, mvcat, catup, catdown, start, review, merge, done, cancel, reopen, rm, restore, purge, link, links, move, up, down, pos, title, after, edit, autotitle)" ;;
 esac

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-board",
+  "description": "The tmux board for Claude Code",
+  "owner": { "name": "code404-found" },
+  "plugins": [
+    {
+      "name": "board",
+      "description": "A tmux board for Claude Code: one todo list shared by the board and every session, a chat per item in its own tmux window, past conversations to resume, and a window inventory.",
+      "author": { "name": "code404-found" },
+      "category": "productivity",
+      "source": "./"
+    }
+  ]
+}
