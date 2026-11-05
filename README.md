@@ -43,55 +43,39 @@ chat, `◐` paused (its chat is not running), `◇` in review, `◆` to merge,
 
 ## Install
 
-Needs bash 5, tmux 3.2 or later, jq, fzf, flock (util-linux) and the Claude
-Code CLI on the PATH. Titles are written by a headless `claude -p --model
-haiku` run a few seconds after an item is added.
+One command, on Linux or macOS:
 
 ```
-claude plugin marketplace add code404-found/claude-board
-claude plugin install board@claude-board
+curl -fsSL https://raw.githubusercontent.com/code404-found/claude-board/main/install.sh | bash
 ```
 
-That installs the six hooks (every lifecycle event runs `collect.sh`) and the
-`/board:todoa` and `/board:todos` skills. Sessions already open keep the hooks
-they started with: restart them.
+It installs what is missing and skips what is there, so it can run again:
 
-Then by hand:
+1. bash 5, tmux 3.2 or later, jq, fzf and flock, through apt, dnf, pacman or
+   brew;
+2. the Claude Code CLI, through its own installer;
+3. the plugin, marketplace `code404-found/claude-board` and plugin
+   `board@claude-board`: the six hooks (every lifecycle event runs
+   `collect.sh`) and the `/board:todoa` and `/board:todos` skills;
+4. `~/.local/bin/claude-board`, a launcher that opens the newest installed
+   version of the plugin, bound to `prefix b` in your tmux config;
+5. the `# Todo list` section of `~/.claude/CLAUDE.md`, which makes every chat
+   feed the list. Its text is at the end of `install.sh`.
 
-1. Bind the board in your tmux config and source it. The plugin lives under
-   `~/.claude/plugins/`; find its path with `claude plugin details board`, or
-   point the binding at a checkout of this repository:
+Sessions already open keep the hooks they started with: restart them. Titles
+are written by a headless `claude -p --model haiku` run a few seconds after an
+item is added.
 
-   ```
-   bind b run-shell "~/claude-board/scripts/board.sh"
-   ```
+Optional, `~/.claude/orchestrator/config`, a shell file the scripts source:
 
-2. Teach Claude the list, in `~/.claude/CLAUDE.md`:
+```sh
+CLAUDE_ORCH_ISSUE_URL=https://example.atlassian.net/browse/  # issue links on category segments such as PROJ-12
+CLAUDE_BIN=/path/to/claude                                    # when claude is not on the PATH tmux has
+EDITOR=nvim                                                   # Ctrl-X Ctrl-E in a prompt
+```
 
-   ```markdown
-   # Todo list
-
-   The board plugin's `scripts/todo.sh` keeps the todo list shown on the tmux
-   board (prefix b, then o). `/board:todoa` adds an item, `/board:todos`
-   starts one.
-
-   - A turn that ends with work left undone (a follow-up you reported, a step
-     you skipped, a bug you noticed out of scope) ends with an
-     `AskUserQuestion`, multiSelect, offering to add those items to the todo
-     list. Add each chosen one as `/board:todoa` does. No question when
-     nothing is left.
-   - A chat whose first prompt opens with `[todo #N]` works on item N. When
-     its work is finished, ask whether to mark it done, and on yes run
-     `todo.sh done N`.
-   ```
-
-3. Optional, `~/.claude/orchestrator/config`, a shell file the scripts source:
-
-   ```sh
-   CLAUDE_ORCH_ISSUE_URL=https://example.atlassian.net/browse/  # issue links on category segments such as PROJ-12
-   CLAUDE_BIN=/path/to/claude                                    # when claude is not on the PATH tmux has
-   EDITOR=nvim                                                   # Ctrl-X Ctrl-E in a prompt
-   ```
+To work on the board itself, bind `prefix b` to `scripts/board.sh` of a
+checkout instead of the launcher.
 
 ## Files
 
@@ -106,6 +90,7 @@ In the plugin:
 | `scripts/history.sh` | past conversations, from the Claude transcripts, cached per file |
 | `scripts/windows.sh` | the tmux window inventory |
 | `hooks/hooks.json` | the six lifecycle events that run `collect.sh` |
+| `install.sh` | the one-command install, skipping every step already in place |
 | `skills/todoa`, `skills/todos` | the two skills |
 
 Data, in `~/.claude/orchestrator` (`CLAUDE_ORCH_DIR` to move it; the state
@@ -133,8 +118,8 @@ until it meets a live tmux pane: that mapping is exact.
 ## Uninstall
 
 `claude plugin uninstall board@claude-board` removes the hooks and skills.
-Then remove the tmux binding, the CLAUDE.md section, and
-`~/.claude/orchestrator` if the list is no longer wanted.
+Then remove the tmux binding, `~/.local/bin/claude-board`, the CLAUDE.md
+section, and `~/.claude/orchestrator` if the list is no longer wanted.
 
 ## License
 
