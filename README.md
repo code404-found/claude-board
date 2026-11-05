@@ -66,10 +66,14 @@ Sessions already open keep the hooks they started with: restart them. Titles
 are written by a headless `claude -p --model haiku` run a few seconds after an
 item is added.
 
+No issue tracker and no code host are required. An issue key in a category,
+such as `PROJ-12`, becomes a link only when the config below names the
+tracker, and the links of an item are whatever URLs you add to it.
+
 Optional, `~/.claude/orchestrator/config`, a shell file the scripts source:
 
 ```sh
-CLAUDE_ORCH_ISSUE_URL=https://example.atlassian.net/browse/  # issue links on category segments such as PROJ-12
+CLAUDE_ORCH_ISSUE_URL=https://tracker.example.com/browse/  # issue links on category segments such as PROJ-12
 CLAUDE_BIN=/path/to/claude                                    # when claude is not on the PATH tmux has
 EDITOR=nvim                                                   # Ctrl-X Ctrl-E in a prompt
 ```

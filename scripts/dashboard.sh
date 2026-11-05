@@ -19,7 +19,7 @@ mkdir -p "$STATE" "$CACHE" 2>/dev/null
 # config, a shell file in the data directory: CLAUDE_BIN, CLAUDE_ORCH_ISSUE_URL, EDITOR
 [ -f "${CLAUDE_ORCH_DIR:-$HOME/.claude/orchestrator}/config" ] && . "${CLAUDE_ORCH_DIR:-$HOME/.claude/orchestrator}/config"
 CLAUDE_BIN="${CLAUDE_BIN:-$(command -v claude || echo claude)}"
-# the tracker URL an issue key is appended to, such as https://example.atlassian.net/browse/; empty for no issue links
+# the tracker URL an issue key is appended to, such as https://tracker.example.com/browse/; empty for no issue links
 ISSUE_URL="${CLAUDE_ORCH_ISSUE_URL:-}"
 EDITOR="${EDITOR:-vi}"
 
@@ -72,7 +72,7 @@ ${B}KEYS${R}
        ${B}Links${R}, listed under the picked item, numbered:
          - its tracker issue, for each category segment that is an issue key
          - every URL written in its description
-         - the links you add with [l], such as its Azure DevOps PR
+         - the links you add with [l], such as its pull request
        [1-9] opens that link in the browser, [o] opens them all.
        ${D}[t] retitle or [e] edit the description (Enter saves, Esc
        cancels, Ctrl-X Ctrl-E opens the editor), or [c] file it under a category path

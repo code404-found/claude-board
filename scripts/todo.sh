@@ -13,7 +13,7 @@
 # text stays the full description, the prompt a started chat receives.
 # after is the comma-separated ids of the items this one waits on, mostly set by the chat that
 # adds it; the board shows it blocked while one of them is still open.
-# links is the space-separated URLs added to the item, such as its Azure DevOps PR; the board
+# links is the space-separated URLs added to the item, such as its pull request; the board
 # opens them next to the issue links of its category segments and the URLs of its text.
 # categories holds the paths made with mkcat, which stay until rmcat; a path only open items
 # carry vanishes with its last one. categories.order ranks siblings the way the board draws
